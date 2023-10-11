@@ -20,12 +20,12 @@ function App() {
     e.preventDefault();
     let start = startAndDestination[0].split(", ").map(Number);
     let destination = startAndDestination[1].split(", ").map(Number);
-    console.log(start, destination);
+    //console.log(start, destination);
     setBounds([
-      Math.min(start[0], destination[0]) - 0.005,
-      Math.min(start[1], destination[1]) - 0.005,
-      Math.max(start[0], destination[0]) + 0.005,
-      Math.max(start[1], destination[1]) + 0.005,
+      Math.min(start[0], destination[0]) - 0.02,
+      Math.min(start[1], destination[1]) - 0.012,
+      Math.max(start[0], destination[0]) + 0.007,
+      Math.max(start[1], destination[1]) + 0.007,
     ]);
   }
   function fetchOsmData(bounds) {
@@ -48,7 +48,7 @@ function App() {
       method: "POST",
     }).then((res) => {
       res.json().then((data) => {
-        console.log(data);
+        //console.log(data);
         setOsmData(data);
       });
     });
