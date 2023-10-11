@@ -9,11 +9,11 @@ function App() {
     40.77599992917774, 29.392805099487305, 40.783799098523986,
     29.399113655090332,
   ]);
-  let [osm, setOsm] = useState(null);
+  let [osmData, setOsmData] = useState(null);
 
   useEffect(() => {
     if (startAndDestination[0] != "" && startAndDestination[1] != "")
-      fetchOsm(bounds);
+      fetchOsmData(bounds);
   }, [bounds]);
 
   function handleSubmit(e) {
@@ -22,13 +22,13 @@ function App() {
     let destination = startAndDestination[1].split(", ").map(Number);
     console.log(start, destination);
     setBounds([
-      Math.min(start[0], destination[0]) - 0.003,
-      Math.min(start[1], destination[1]) - 0.003,
-      Math.max(start[0], destination[0]) + 0.003,
-      Math.max(start[1], destination[1]) + 0.003,
+      Math.min(start[0], destination[0]) - 0.005,
+      Math.min(start[1], destination[1]) - 0.005,
+      Math.max(start[0], destination[0]) + 0.005,
+      Math.max(start[1], destination[1]) + 0.005,
     ]);
   }
-  function fetchOsm(bounds) {
+  function fetchOsmData(bounds) {
     fetch("https://overpass-api.de/api/interpreter", {
       headers: {
         accept: "*/*",
@@ -49,15 +49,15 @@ function App() {
     }).then((res) => {
       res.json().then((data) => {
         console.log(data);
-        setOsm(data);
+        setOsmData(data);
       });
     });
   }
 
   return (
     <>
-      {osm ? (
-        <PixiComponent osm={osm} />
+      {osmData ? (
+        <PixiComponent osmData={osmData} bounds={bounds} />
       ) : (
         <div className="App">
           <header className="App-header">
@@ -89,10 +89,6 @@ function App() {
               </button>
             </p>
           </form>
-
-          <div className="App-body">
-            <p>osm: {osm?.elements.length}</p>
-          </div>
         </div>
       )}
     </>
