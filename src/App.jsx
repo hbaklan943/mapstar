@@ -4,7 +4,11 @@ import { useEffect } from "react";
 import { PixiComponent } from "./PixiComponent";
 
 function App() {
-  let [startAndDestination, setStartAndDestination] = useState(["", ""]);
+  let [boundsReady, setBoundsReady] = useState(false);
+  let [startAndDestination, setStartAndDestination] = useState([
+    "40.778004, 29.397055",
+    "40.801917, 29.436712",
+  ]);
   let [bounds, setBounds] = useState([
     40.77599992917774, 29.392805099487305, 40.783799098523986,
     29.399113655090332,
@@ -12,8 +16,7 @@ function App() {
   let [osmData, setOsmData] = useState(null);
 
   useEffect(() => {
-    if (startAndDestination[0] != "" && startAndDestination[1] != "")
-      fetchOsmData(bounds);
+    if (boundsReady) fetchOsmData(bounds);
   }, [bounds]);
 
   function handleSubmit(e) {
@@ -21,12 +24,43 @@ function App() {
     let start = startAndDestination[0].split(", ").map(Number);
     let destination = startAndDestination[1].split(", ").map(Number);
     //console.log(start, destination);
+
+    //finding proper bounds
+    const frame = {
+      lowerBound: Math.min(start[0], destination[0]),
+      leftBound: Math.min(start[1], destination[1]),
+      upperBound: Math.max(start[0], destination[0]),
+      rightBound: Math.max(start[1], destination[1]),
+    };
+    const verticalDistance = Math.abs(start[0] - destination[0]);
+    const horizontalDistance = Math.abs(start[1] - destination[1]);
+    const verticalMid = (start[0] + destination[0]) / 2;
+    const horizontalMid = (start[1] + destination[1]) / 2;
+    if (verticalDistance / 720 > horizontalDistance / 1280) {
+      frame.lowerBound -= 0.02;
+      frame.leftBound =
+        horizontalMid - ((verticalDistance + 0.04) / 2 / 720) * 1280;
+      frame.upperBound += 0.02;
+      frame.rightBound =
+        horizontalMid + ((verticalDistance + 0.04) / 2 / 720) * 1280;
+    } else {
+      frame.lowerBound =
+        verticalMid - ((horizontalDistance + 0.04) / 2 / 1280) * 720;
+      frame.leftBound -= 0.02;
+      frame.upperBound =
+        verticalMid + ((horizontalDistance + 0.04) / 2 / 1280) * 720;
+      frame.rightBound += 0.02;
+    }
+
+    console.log(startAndDestination);
+    console.log(frame);
     setBounds([
-      Math.min(start[0], destination[0]) - 0.02,
-      Math.min(start[1], destination[1]) - 0.012,
-      Math.max(start[0], destination[0]) + 0.007,
-      Math.max(start[1], destination[1]) + 0.007,
+      frame.lowerBound, // lower
+      frame.leftBound, // left
+      frame.upperBound, // upper
+      frame.rightBound, // right
     ]);
+    setBoundsReady(true);
   }
   function fetchOsmData(bounds) {
     fetch("https://overpass-api.de/api/interpreter", {
