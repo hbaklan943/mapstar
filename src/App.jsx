@@ -6,8 +6,8 @@ import { PixiComponent } from "./PixiComponent";
 function App() {
   let [boundsReady, setBoundsReady] = useState(false);
   let [startAndDestination, setStartAndDestination] = useState([
-    "40.778004, 29.397055",
-    "40.801917, 29.436712",
+    { lat: 40.778004, lon: 29.397055 },
+    { lat: 40.801917, lon: 29.436712 },
   ]);
   let [bounds, setBounds] = useState([
     40.77599992917774, 29.392805099487305, 40.783799098523986,
@@ -21,39 +21,41 @@ function App() {
 
   function handleSubmit(e) {
     e.preventDefault();
-    let start = startAndDestination[0].split(", ").map(Number);
-    let destination = startAndDestination[1].split(", ").map(Number);
+    let start = startAndDestination[0];
+    //console.log(start);
+    let destination = startAndDestination[1];
     //console.log(start, destination);
 
     //finding proper bounds
     const frame = {
-      lowerBound: Math.min(start[0], destination[0]),
-      leftBound: Math.min(start[1], destination[1]),
-      upperBound: Math.max(start[0], destination[0]),
-      rightBound: Math.max(start[1], destination[1]),
+      lowerBound: Math.min(start.lat, destination.lat),
+      leftBound: Math.min(start.lon, destination.lon),
+      upperBound: Math.max(start.lat, destination.lat),
+      rightBound: Math.max(start.lon, destination.lon),
     };
-    const verticalDistance = Math.abs(start[0] - destination[0]);
-    const horizontalDistance = Math.abs(start[1] - destination[1]);
-    const verticalMid = (start[0] + destination[0]) / 2;
-    const horizontalMid = (start[1] + destination[1]) / 2;
+    let margin = 0.01;
+    const verticalDistance = Math.abs(start.lat - destination.lat);
+    const horizontalDistance = Math.abs(start.lon - destination.lon);
+    const verticalMid = (start.lat + destination.lat) / 2;
+    const horizontalMid = (start.lon + destination.lon) / 2;
     if (verticalDistance / 720 > horizontalDistance / 1280) {
-      frame.lowerBound -= 0.02;
+      frame.lowerBound -= margin;
       frame.leftBound =
-        horizontalMid - ((verticalDistance + 0.04) / 2 / 720) * 1280;
-      frame.upperBound += 0.02;
+        horizontalMid - ((verticalDistance / 2 + margin) / 720) * 1280;
+      frame.upperBound += margin;
       frame.rightBound =
-        horizontalMid + ((verticalDistance + 0.04) / 2 / 720) * 1280;
+        horizontalMid + ((verticalDistance / 2 + margin) / 720) * 1280;
     } else {
       frame.lowerBound =
-        verticalMid - ((horizontalDistance + 0.04) / 2 / 1280) * 720;
+        verticalMid - ((horizontalDistance / 2 + margin) / 1280) * 720;
       frame.leftBound -= 0.02;
       frame.upperBound =
-        verticalMid + ((horizontalDistance + 0.04) / 2 / 1280) * 720;
+        verticalMid + ((horizontalDistance / 2 + margin) / 1280) * 720;
       frame.rightBound += 0.02;
     }
 
-    console.log(startAndDestination);
-    console.log(frame);
+    //console.log(startAndDestination);
+    //console.log(frame);
     setBounds([
       frame.lowerBound, // lower
       frame.leftBound, // left
@@ -91,7 +93,11 @@ function App() {
   return (
     <>
       {osmData ? (
-        <PixiComponent osmData={osmData} bounds={bounds} />
+        <PixiComponent
+          osmData={osmData}
+          bounds={bounds}
+          startAndDestination={startAndDestination}
+        />
       ) : (
         <div className="App">
           <header className="App-header">
@@ -99,22 +105,40 @@ function App() {
           </header>
 
           <form onSubmit={handleSubmit}>
-            <p>start coordinates: {startAndDestination[0]}</p>
+            <p>
+              start coordinates:{" "}
+              {`${startAndDestination[0].lat}, ${startAndDestination[0].lon}`}
+            </p>
             <input
               onChange={(e) =>
-                setStartAndDestination([e.target.value, startAndDestination[1]])
+                setStartAndDestination([
+                  {
+                    lat: e.target.value.split(", ")[0],
+                    lon: e.target.value.split(", ")[1],
+                  },
+                  startAndDestination[1],
+                ])
               }
-              value={startAndDestination[0]}
+              value={`${startAndDestination[0].lat}, ${startAndDestination[0].lon}`}
               type="text"
               name="start"
             />
-            <p>destination coordinates: {startAndDestination[1]}</p>
+            <p>
+              destination coordinates:{" "}
+              {(startAndDestination[1].lat, startAndDestination[1].lat.lon)}
+            </p>
             <input
               name="destination"
               onChange={(e) =>
-                setStartAndDestination([startAndDestination[0], e.target.value])
+                setStartAndDestination([
+                  startAndDestination[0],
+                  {
+                    lat: e.target.value.split(", ")[0],
+                    lon: e.target.value.split(", ")[1],
+                  },
+                ])
               }
-              value={startAndDestination[1]}
+              value={`${startAndDestination[1].lat}, ${startAndDestination[1].lon}`}
               type="text"
             />
             <p>
