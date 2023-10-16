@@ -3,7 +3,8 @@ import * as PIXI from "pixi.js";
 
 export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
   useEffect(() => {
-    console.log(osmData);
+    //console.log(osmData);
+
     const [width, height] = [1280, 720];
     const app = new PIXI.Application({
       width,
@@ -40,7 +41,7 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
         })
     );
 
-    //drawing ways
+    //draw way function
     const drawWay = (way, color) => {
       const wayGraphics = new PIXI.Graphics();
       wayGraphics.lineStyle(2, color, 0.5); // Adjust line style as needed
@@ -62,8 +63,21 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
       app.stage.addChild(wayGraphics);
     };
 
+    //draw edge function
+    const drawEdge = (node1, node2, color) => {
+      //console.log(node1, node2);
+      const edgeGraphics = new PIXI.Graphics();
+      edgeGraphics.lineStyle(2, color, 0.5); // Adjust line style as needed
+      const node1Coord = convertCoordinates(node1);
+      const node2Coord = convertCoordinates(node2);
+      edgeGraphics.moveTo(node1Coord.x, node1Coord.y);
+      edgeGraphics.lineTo(node2Coord.x, node2Coord.y);
+      app.stage.addChild(edgeGraphics);
+    };
+
     let ways = [];
     let startNode = null;
+    let startWay = null;
     let endNode = null;
     let currDiffFromStart = Infinity;
     let currDiffFromEnd = Infinity;
@@ -75,6 +89,7 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
           currDiffFromStart
         ) {
           startNode = nodesMap.get(way.nodes[0]);
+          startWay = way;
           currDiffFromStart = distance(
             nodesMap.get(way.nodes[0]),
             startAndDestination[0]
@@ -93,6 +108,30 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
         ways.push(way);
         drawWay(way, 0x952547);
       });
+    //creating adjecency list
+    const adjList = new Map();
+    osmData.elements
+      .filter((element) => element.type === "node")
+      .forEach((node) => {
+        adjList.set(node.id, []);
+      });
+    osmData.elements
+      .filter((element) => element.type === "node")
+      .forEach((node) => {
+        ways.forEach((way) => {
+          if (way.nodes.includes(node.id)) {
+            const index = way.nodes.indexOf(node.id);
+            if (index > 0) {
+              adjList.get(node.id).push(way.nodes[index - 1]);
+            }
+            if (index < way.nodes.length - 1) {
+              adjList.get(node.id).push(way.nodes[index + 1]);
+            }
+          }
+        });
+      });
+    //console.log(adjList);
+
     console.log("Start and End coordinates", startAndDestination);
     console.log("Start node: ", startNode, "\nEnd node: ", endNode);
     //drawing start and end nodes
@@ -116,25 +155,26 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
     endNodeGraphics.endFill();
     app.stage.addChild(endNodeGraphics);
 
-    let nodeQueue = [startNode.id];
-    let visitedNodes = [];
-    let visitedWays = new Set();
+    let visited = new Set([startNode.id]);
+    let queue = [startNode.id];
     function animationLoop(delta) {
       app.render();
-      //console.log(delta);
-      ways.forEach((way) => {
-        if (visitedWays.has(way.id)) return;
-        if (way.nodes.includes(nodeQueue[0])) {
-          visitedWays.add(way.id);
-          drawWay(way, 0xfff);
-          nodeQueue.push(...way.nodes);
-        }
-      });
 
-      visitedNodes.push(nodeQueue.shift());
+      console.log(adjList.get(queue[0]));
+      adjList.get(queue[0]).forEach((nodeId) => {
+        console.log(queue);
+        console.log(nodeId);
+        if (!visited.has(nodeId)) {
+          drawEdge(nodesMap.get(queue[0]), nodesMap.get(nodeId), 0x00ff00);
+          visited.add(nodeId);
+          queue.push(nodeId);
+        }
+        queue.shift();
+      });
+      //console.log(delta);
     }
 
-    app.ticker.maxFPS = 60;
+    app.ticker.maxFPS = 5;
     app.ticker.add(animationLoop);
 
     return () => app.destroy(true);
@@ -145,3 +185,4 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
 };
 
 //0x952547
+//0x00ff00
