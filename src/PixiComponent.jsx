@@ -3,6 +3,7 @@ import * as PIXI from "pixi.js";
 
 export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
   useEffect(() => {
+    console.log(osmData);
     const [width, height] = [1280, 720];
     const app = new PIXI.Application({
       width,
@@ -24,7 +25,7 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
     };
 
     const distance = (node1, node2) => {
-      console.log(node1, node2);
+      //console.log(node1, node2);
       return Math.sqrt(
         Math.pow(node1.lat - node2.lat, 2) + Math.pow(node1.lon - node2.lon, 2)
       );
@@ -115,39 +116,25 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
     endNodeGraphics.endFill();
     app.stage.addChild(endNodeGraphics);
 
-    let nodeQueue = [startNode];
+    let nodeQueue = [startNode.id];
+    let visitedNodes = [];
+    let visitedWays = new Set();
     function animationLoop(delta) {
-      //console.log(delta);
-      //console.log(nodeQueue);
-      const currNode = nodeQueue.shift();
-      if (currNode === endNode) {
-        console.log("found end node");
-        return;
-      }
-      const currNodeWays = ways.filter((way) =>
-        way.nodes.includes(currNode.id)
-      );
-      for (const way of currNodeWays) {
-        const nextNode = nodesMap.get(
-          way.nodes.filter((nodeId) => nodeId !== currNode.id)[0]
-        );
-        if (!nodeQueue.includes(nextNode)) {
-          nodeQueue.push(nextNode);
-        }
-      }
-      const currNodeGraphics = new PIXI.Graphics();
-      currNodeGraphics.beginFill(0x952547);
-      currNodeGraphics.drawCircle(
-        convertCoordinates(currNode).x,
-        convertCoordinates(currNode).y,
-        5
-      );
-      currNodeGraphics.endFill();
-      app.stage.addChild(currNodeGraphics);
-
       app.render();
+      //console.log(delta);
+      ways.forEach((way) => {
+        if (visitedWays.has(way.id)) return;
+        if (way.nodes.includes(nodeQueue[0])) {
+          visitedWays.add(way.id);
+          drawWay(way, 0xfff);
+          nodeQueue.push(...way.nodes);
+        }
+      });
+
+      visitedNodes.push(nodeQueue.shift());
     }
-    app.ticker.maxFPS = 30;
+
+    app.ticker.maxFPS = 60;
     app.ticker.add(animationLoop);
 
     return () => app.destroy(true);

@@ -6,8 +6,8 @@ import { PixiComponent } from "./PixiComponent";
 function App() {
   let [boundsReady, setBoundsReady] = useState(false);
   let [startAndDestination, setStartAndDestination] = useState([
-    { lat: 40.778004, lon: 29.397055 },
-    { lat: 40.801917, lon: 29.436712 },
+    { lat: 40.786552, lon: 29.334057 },
+    { lat: 40.79264, lon: 29.337854 },
   ]);
   let [bounds, setBounds] = useState([
     40.77599992917774, 29.392805099487305, 40.783799098523986,
