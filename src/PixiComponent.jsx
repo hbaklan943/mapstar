@@ -20,7 +20,7 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
       const x = (width / (bounds[3] - bounds[1])) * (node.lon - bounds[1]);
       const y =
         height - (height / (bounds[2] - bounds[0])) * (node.lat - bounds[0]);
-      //console.log(bounds);
+      //console.log(bounds)
       //console.log(x, y);
       return new PIXI.Point(x, y);
     };
@@ -193,12 +193,13 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
       // draw neonish edges
       drawEdge(nodesMap.get(nodeId), nodesMap.get(parent.get(nodeId)), {
         width: 2,
-        color: 0x88ff88,
+        color: 0x8888ff,
         alpha: 1,
       });
       drawEdge(nodesMap.get(nodeId), nodesMap.get(parent.get(nodeId)), {
         width: 5,
-        color: 0x00ff00,
+        color: 0x0000ff,
+
         alpha: 0.5,
       });
       drawPath(parent.get(nodeId));
