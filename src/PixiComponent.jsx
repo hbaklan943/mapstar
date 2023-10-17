@@ -64,10 +64,10 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
     };
 
     //draw edge function
-    const drawEdge = (node1, node2, color) => {
+    const drawEdge = (node1, node2, lineStyle) => {
       //console.log(node1, node2);
       const edgeGraphics = new PIXI.Graphics();
-      edgeGraphics.lineStyle(2, color, 0.5); // Adjust line style as needed
+      edgeGraphics.lineStyle(lineStyle.width, lineStyle.color, lineStyle.alpha);
       const node1Coord = convertCoordinates(node1);
       const node2Coord = convertCoordinates(node2);
       edgeGraphics.moveTo(node1Coord.x, node1Coord.y);
@@ -157,7 +157,7 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
 
     let visited = new Set([startNode.id]);
     let queue = [startNode.id];
-    let path = [];
+    let parent = new Map([[startNode.id, null]]);
     function animationLoop(delta) {
       app.render();
 
@@ -165,27 +165,46 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
       queue.forEach((queueElement) => {
         queueShift++;
         adjList.get(queueElement).forEach((nodeId) => {
+          drawEdge(nodesMap.get(queueElement), nodesMap.get(nodeId), {
+            width: 1,
+            color: 0x00ff00,
+            alpha: 1,
+          });
           if (!visited.has(nodeId)) {
-            drawEdge(
-              nodesMap.get(queueElement),
-              nodesMap.get(nodeId),
-              0x00ff00
-            );
             visited.add(nodeId);
             queue.push(nodeId);
+            parent.set(nodeId, queueElement);
 
             if (nodeId === endNode.id) {
-              app.ticker.stop();
+              drawPath(nodeId);
+              app.ticker.remove(animationLoop);
             }
           }
         });
       });
       queue.splice(0, queueShift);
-
       //console.log(delta);
     }
 
-    app.ticker.maxFPS = 5;
+    function drawPath(nodeId) {
+      if (parent.get(nodeId) === null) {
+        return;
+      }
+      // draw neonish edges
+      drawEdge(nodesMap.get(nodeId), nodesMap.get(parent.get(nodeId)), {
+        width: 2,
+        color: 0x88ff88,
+        alpha: 1,
+      });
+      drawEdge(nodesMap.get(nodeId), nodesMap.get(parent.get(nodeId)), {
+        width: 5,
+        color: 0x00ff00,
+        alpha: 0.5,
+      });
+      drawPath(parent.get(nodeId));
+    }
+
+    app.ticker.maxFPS = 2;
     app.ticker.add(animationLoop);
 
     return () => app.destroy(true);
