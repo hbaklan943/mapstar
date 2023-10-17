@@ -5,6 +5,10 @@ import { PixiComponent } from "./PixiComponent";
 
 function App() {
   let [boundsReady, setBoundsReady] = useState(false);
+  const [inputs, setInputs] = useState([
+    "40.786552, 29.334057",
+    "40.79264, 29.337854",
+  ]);
   let [startAndDestination, setStartAndDestination] = useState([
     { lat: 40.786552, lon: 29.334057 },
     { lat: 40.79264, lon: 29.337854 },
@@ -21,6 +25,7 @@ function App() {
 
   function handleSubmit(e) {
     e.preventDefault();
+
     let start = startAndDestination[0];
     //console.log(start);
     let destination = startAndDestination[1];
@@ -105,40 +110,36 @@ function App() {
           </header>
 
           <form onSubmit={handleSubmit}>
-            <p>
-              start coordinates:{" "}
-              {`${startAndDestination[0].lat}, ${startAndDestination[0].lon}`}
-            </p>
+            <p>start coordinates: {inputs[0]}</p>
             <input
-              onChange={(e) =>
+              onChange={(e) => {
+                setInputs([e.target.value, inputs[1]]);
                 setStartAndDestination([
                   {
-                    lat: e.target.value.split(", ")[0],
-                    lon: e.target.value.split(", ")[1],
+                    lat: parseFloat(e.target.value.split(",")[0]),
+                    lon: parseFloat(e.target.value.split(",")[1]),
                   },
                   startAndDestination[1],
-                ])
-              }
-              value={`${startAndDestination[0].lat}, ${startAndDestination[0].lon}`}
+                ]);
+              }}
+              value={inputs[0]}
               type="text"
               name="start"
             />
-            <p>
-              destination coordinates:{" "}
-              {(startAndDestination[1].lat, startAndDestination[1].lat.lon)}
-            </p>
+            <p>destination coordinates: {inputs[1]}</p>
             <input
               name="destination"
-              onChange={(e) =>
+              onChange={(e) => {
+                setInputs([inputs[0], e.target.value]);
                 setStartAndDestination([
                   startAndDestination[0],
                   {
-                    lat: e.target.value.split(", ")[0],
-                    lon: e.target.value.split(", ")[1],
+                    lat: parseFloat(e.target.value.split(",")[0]),
+                    lon: parseFloat(e.target.value.split(",")[1]),
                   },
-                ])
-              }
-              value={`${startAndDestination[1].lat}, ${startAndDestination[1].lon}`}
+                ]);
+              }}
+              value={inputs[1]}
               type="text"
             />
             <p>

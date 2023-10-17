@@ -157,20 +157,31 @@ export const PixiComponent = ({ osmData, bounds, startAndDestination }) => {
 
     let visited = new Set([startNode.id]);
     let queue = [startNode.id];
+    let path = [];
     function animationLoop(delta) {
       app.render();
 
-      console.log(adjList.get(queue[0]));
-      adjList.get(queue[0]).forEach((nodeId) => {
-        console.log(queue);
-        console.log(nodeId);
-        if (!visited.has(nodeId)) {
-          drawEdge(nodesMap.get(queue[0]), nodesMap.get(nodeId), 0x00ff00);
-          visited.add(nodeId);
-          queue.push(nodeId);
-        }
-        queue.shift();
+      let queueShift = 0;
+      queue.forEach((queueElement) => {
+        queueShift++;
+        adjList.get(queueElement).forEach((nodeId) => {
+          if (!visited.has(nodeId)) {
+            drawEdge(
+              nodesMap.get(queueElement),
+              nodesMap.get(nodeId),
+              0x00ff00
+            );
+            visited.add(nodeId);
+            queue.push(nodeId);
+
+            if (nodeId === endNode.id) {
+              app.ticker.stop();
+            }
+          }
+        });
       });
+      queue.splice(0, queueShift);
+
       //console.log(delta);
     }
 
