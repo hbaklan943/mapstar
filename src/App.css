@@ -40,3 +40,25 @@
 .read-the-docs {
   color: #888;
 }
+
+.leaflet-container {
+  transition: background-color 1s;
+}
+.leaflet-tile-pane {
+  transition: opacity 1s;
+}
+.map-dimmed.leaflet-container {
+  background: #24152a;
+}
+.map-dimmed .leaflet-tile-pane {
+  opacity: 0.2;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 1em;
+}

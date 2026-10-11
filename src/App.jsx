@@ -1,10 +1,67 @@
 import { useState } from "react";
 import "./App.css";
-import { useEffect } from "react";
-import { PixiComponent } from "./PixiComponent";
+import { MapPicker } from "./MapPicker";
+import { algorithms } from "./algorithms";
+
+function isValidCoordinate({ lat, lon }) {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lon) <= 180
+  );
+}
+
+//public Overpass servers, they are busy or down on and off
+const overpassUrls = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+];
+
+//all servers are asked at once and the first answer wins
+async function requestOsmData(bounds) {
+  const body = new URLSearchParams({
+    data: `[out:json][timeout:25];way["highway"](${bounds.join(
+      ",",
+    )});out body;>;out skel qt;`,
+  });
+  const controller = new AbortController();
+  const deadline = Date.now() + 30000;
+
+  //a server that fails gets asked again a few times
+  const askServer = async (url) => {
+    let lastError;
+    for (let attempt = 0; attempt < 6 && Date.now() < deadline; attempt++) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 700));
+      if (controller.signal.aborted) break;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          body,
+          signal: controller.signal,
+        });
+        if (res.ok) return await res.json();
+        lastError = new Error(`Overpass API returned ${res.status}`);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError;
+  };
+
+  try {
+    return await Promise.any(overpassUrls.map(askServer));
+  } catch (err) {
+    throw err.errors[0];
+  } finally {
+    controller.abort();
+  }
+}
 
 function App() {
-  let [boundsReady, setBoundsReady] = useState(false);
+  let [loading, setLoading] = useState(false);
+  let [error, setError] = useState(null);
   const [inputs, setInputs] = useState([
     "40.786552, 29.334057",
     "40.79264, 29.337854",
@@ -18,10 +75,21 @@ function App() {
     29.399113655090332,
   ]);
   let [osmData, setOsmData] = useState(null);
+  let [replayCount, setReplayCount] = useState(0);
+  let [algorithm, setAlgorithm] = useState("astar");
 
-  useEffect(() => {
-    if (boundsReady) fetchOsmData(bounds);
-  }, [bounds]);
+  function handlePick(index, point) {
+    setInputs((inputs) => {
+      const newInputs = [...inputs];
+      newInputs[index] = `${point.lat.toFixed(6)}, ${point.lon.toFixed(6)}`;
+      return newInputs;
+    });
+    setStartAndDestination((startAndDestination) => {
+      const newStartAndDestination = [...startAndDestination];
+      newStartAndDestination[index] = point;
+      return newStartAndDestination;
+    });
+  }
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -30,6 +98,11 @@ function App() {
     //console.log(start);
     let destination = startAndDestination[1];
     //console.log(start, destination);
+
+    if (!isValidCoordinate(start) || !isValidCoordinate(destination)) {
+      setError('Enter coordinates as "latitude, longitude"');
+      return;
+    }
 
     //finding proper bounds
     const frame = {
@@ -61,96 +134,114 @@ function App() {
 
     //console.log(startAndDestination);
     //console.log(frame);
-    setBounds([
+    const newBounds = [
       frame.lowerBound, // lower
       frame.leftBound, // left
       frame.upperBound, // upper
       frame.rightBound, // right
-    ]);
-    setBoundsReady(true);
+    ];
+    setBounds(newBounds);
+    fetchOsmData(newBounds);
   }
   function fetchOsmData(bounds) {
-    fetch("https://overpass-api.de/api/interpreter", {
-      headers: {
-        accept: "*/*",
-        "accept-language": "en-US,en;q=0.8",
-        "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "sec-ch-ua": '"Brave";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Linux"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "cross-site",
-        "sec-gpc": "1",
-        Referer: "https://overpass-turbo.eu/",
-        "Referrer-Policy": "strict-origin-when-cross-origin",
-      },
-      body: `data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3B%0A(%0A++way%5B%22highway%22%5D(${bounds[0]}, ${bounds[1]}, ${bounds[2]}, ${bounds[3]})%3B%0A)%3B%0Aout+body%3B%0A%3E%3B%0Aout+skel+qt%3B`,
-      method: "POST",
-    }).then((res) => {
-      res.json().then((data) => {
+    setError(null);
+    setLoading(true);
+    requestOsmData(bounds)
+      .then((data) => {
         //console.log(data);
+        if (!data.elements.some((element) => element.type === "way"))
+          throw new Error("No roads found in this area");
         setOsmData(data);
-      });
-    });
+      })
+      .catch((err) => setError(`Could not load map data: ${err.message}`))
+      .finally(() => setLoading(false));
   }
 
-  return (
-    <>
-      {osmData ? (
-        <PixiComponent
-          osmData={osmData}
-          bounds={bounds}
-          startAndDestination={startAndDestination}
-        />
-      ) : (
-        <div className="App">
-          <header className="App-header">
-            <h1>React App</h1>
-          </header>
+  const algorithmSelect = (
+    <select
+      value={algorithm}
+      onChange={(e) => setAlgorithm(e.target.value)}
+      aria-label="algorithm"
+    >
+      {Object.entries(algorithms).map(([id, { name }]) => (
+        <option key={id} value={id}>
+          {name}
+        </option>
+      ))}
+    </select>
+  );
 
-          <form onSubmit={handleSubmit}>
-            <p>start coordinates: {inputs[0]}</p>
-            <input
-              onChange={(e) => {
-                setInputs([e.target.value, inputs[1]]);
-                setStartAndDestination([
-                  {
-                    lat: parseFloat(e.target.value.split(",")[0]),
-                    lon: parseFloat(e.target.value.split(",")[1]),
-                  },
-                  startAndDestination[1],
-                ]);
-              }}
-              value={inputs[0]}
-              type="text"
-              name="start"
-            />
-            <p>destination coordinates: {inputs[1]}</p>
-            <input
-              name="destination"
-              onChange={(e) => {
-                setInputs([inputs[0], e.target.value]);
-                setStartAndDestination([
-                  startAndDestination[0],
-                  {
-                    lat: parseFloat(e.target.value.split(",")[0]),
-                    lon: parseFloat(e.target.value.split(",")[1]),
-                  },
-                ]);
-              }}
-              value={inputs[1]}
-              type="text"
-            />
-            <p>
-              <button id="login-button" type="submit">
-                Submit
-              </button>
-            </p>
-          </form>
+  return (
+    <div className="App">
+      <p>
+        {error ??
+          "Click the map to pick the start, click again to pick the destination."}
+      </p>
+      {osmData ? (
+        <div className="controls">
+          {algorithmSelect}
+          <button onClick={() => setReplayCount(replayCount + 1)}>
+            Replay
+          </button>
+          <button
+            onClick={() => {
+              setOsmData(null);
+              setReplayCount(0);
+            }}
+          >
+            New route
+          </button>
         </div>
+      ) : (
+        <form className="controls" onSubmit={handleSubmit}>
+          {algorithmSelect}
+          <input
+            onChange={(e) => {
+              setInputs([e.target.value, inputs[1]]);
+              setStartAndDestination([
+                {
+                  lat: parseFloat(e.target.value.split(",")[0]),
+                  lon: parseFloat(e.target.value.split(",")[1]),
+                },
+                startAndDestination[1],
+              ]);
+            }}
+            value={inputs[0]}
+            type="text"
+            name="start"
+            aria-label="start coordinates"
+          />
+          <input
+            name="destination"
+            onChange={(e) => {
+              setInputs([inputs[0], e.target.value]);
+              setStartAndDestination([
+                startAndDestination[0],
+                {
+                  lat: parseFloat(e.target.value.split(",")[0]),
+                  lon: parseFloat(e.target.value.split(",")[1]),
+                },
+              ]);
+            }}
+            value={inputs[1]}
+            type="text"
+            aria-label="destination coordinates"
+          />
+          <button id="login-button" type="submit" disabled={loading}>
+            {loading ? "Loading..." : "Submit"}
+          </button>
+        </form>
       )}
-    </>
+
+      <MapPicker
+        startAndDestination={startAndDestination}
+        onPick={handlePick}
+        osmData={osmData}
+        bounds={bounds}
+        replayCount={replayCount}
+        algorithm={algorithm}
+      />
+    </div>
   );
 }
 export default App;
