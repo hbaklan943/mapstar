@@ -77,6 +77,7 @@ function App() {
   let [osmData, setOsmData] = useState(null);
   let [replayCount, setReplayCount] = useState(0);
   let [algorithm, setAlgorithm] = useState("astar");
+  let [result, setResult] = useState(null);
 
   function handlePick(index, point) {
     setInputs((inputs) => {
@@ -157,6 +158,10 @@ function App() {
       .finally(() => setLoading(false));
   }
 
+  const pickingHint =
+    "Click the map to pick the start (green), click again to pick the destination (red).";
+  const searchingHint = `${algorithms[algorithm].name}: searching...`;
+
   const algorithmSelect = (
     <select
       value={algorithm}
@@ -173,10 +178,7 @@ function App() {
 
   return (
     <div className="App">
-      <p>
-        {error ??
-          "Click the map to pick the start, click again to pick the destination."}
-      </p>
+      <p>{error ?? result ?? (osmData ? searchingHint : pickingHint)}</p>
       {osmData ? (
         <div className="controls">
           {algorithmSelect}
@@ -187,6 +189,7 @@ function App() {
             onClick={() => {
               setOsmData(null);
               setReplayCount(0);
+              setResult(null);
             }}
           >
             New route
@@ -240,6 +243,7 @@ function App() {
         bounds={bounds}
         replayCount={replayCount}
         algorithm={algorithm}
+        onResult={setResult}
       />
     </div>
   );

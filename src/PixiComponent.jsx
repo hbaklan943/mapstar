@@ -43,15 +43,58 @@ class MinHeap {
   }
 }
 
+//every color of the drawing
+const palette = {
+  road: 0x7f93bd, //calm blue-gray, the roads are only the backdrop
+  exploring: 0xfff3b0, //edges the search is looking at right now
+  explored: 0xff8a3d, //edges it has already looked at
+  routeGlow: 0x00d5ff,
+  route: 0xeaffff,
+  node: 0xffffff,
+  startRing: 0x4ade80,
+  endRing: 0xff4d6d,
+};
+
+//color between color1 (amount 0) and color2 (amount 1)
+const mixColors = (color1, color2, amount) =>
+  [16, 8, 0].reduce((mixed, shift) => {
+    const channel1 = (color1 >> shift) & 0xff;
+    const channel2 = (color2 >> shift) & 0xff;
+    return (
+      mixed | (Math.round(channel1 + (channel2 - channel1) * amount) << shift)
+    );
+  }, 0);
+
+//line width of a road by its osm highway type
+const roadWidth = (way) => {
+  const type = (way.tags?.highway ?? "").replace("_link", "");
+  if (["motorway", "trunk", "primary"].includes(type)) return 4;
+  if (["secondary", "tertiary"].includes(type)) return 3;
+  if (
+    ["footway", "path", "steps", "cycleway", "pedestrian", "track"].includes(
+      type,
+    )
+  )
+    return 1;
+  return 2;
+};
+
+const formatDistance = (meters) =>
+  meters < 1000
+    ? `${Math.round(meters)} m`
+    : `${(meters / 1000).toFixed(2)} km`;
+
 export const PixiComponent = ({
   osmData,
   map,
   startAndDestination,
   replayCount,
   algorithm,
-  onRoadsDrawn,
+  onResult,
 }) => {
   const replayRef = useRef(null);
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
   const algorithmRef = useRef(algorithm);
   algorithmRef.current = algorithm;
 
@@ -68,8 +111,7 @@ export const PixiComponent = ({
       resolution: window.devicePixelRatio,
       autoDensity: true,
     });
-    //pixi canvas sits in its own leaflet pane, above the map but below the
-    //"Start" and "Destination" labels
+    //pixi canvas sits in its own leaflet pane above the map
     const pane = map.getPane("route") ?? map.createPane("route");
     Object.assign(pane.style, { zIndex: 450, pointerEvents: "none" });
     pane.appendChild(app.view);
@@ -109,17 +151,20 @@ export const PixiComponent = ({
     const roadsLayer = new PIXI.Container();
     roadsLayer.alpha = 0;
     app.stage.addChild(roadsLayer);
-    //everything the search draws, cleared on a replay
-    const searchLayer = new PIXI.Container();
-    app.stage.addChild(searchLayer);
+    //edges the search looked at and the route it found, cleared on a replay
+    const trailLayer = new PIXI.Container();
+    app.stage.addChild(trailLayer);
+    const pathLayer = new PIXI.Container();
+    app.stage.addChild(pathLayer);
     //start/end nodes stay on top of whatever the search draws
     const nodesLayer = new PIXI.Container();
     nodesLayer.alpha = 0;
     app.stage.addChild(nodesLayer);
     const wayGraphics = new PIXI.Graphics();
-    wayGraphics.lineStyle(2, 0xc02f5c, 0.8); // Adjust line style as needed
     roadsLayer.addChild(wayGraphics);
     const drawWay = (way) => {
+      const width = roadWidth(way);
+      wayGraphics.lineStyle(width, palette.road, width === 1 ? 0.35 : 0.6);
       const nodeCoords = way.nodes.map((nodeId) => {
         const node = nodesMap.get(nodeId);
         return convertCoordinates(node);
@@ -150,22 +195,27 @@ export const PixiComponent = ({
     const showMessage = (text) => {
       const message = new PIXI.Text(text, { fill: 0xffffff, fontSize: 24 });
       message.position.set(16, 16);
-      searchLayer.addChild(message);
+      app.stage.addChild(message);
     };
 
     const ways = osmData.elements.filter((element) => element.type === "way");
-    ways.forEach((way) => drawWay(way));
+    //big roads are drawn last so they end up on top
+    [...ways]
+      .sort((way1, way2) => roadWidth(way1) - roadWidth(way2))
+      .forEach((way) => drawWay(way));
 
     //creating adjecency list, each edge weighted by its length
     const adjList = new Map();
     ways.forEach((way) => {
+      //explored edges are drawn wide enough to cover the road under them
+      const width = Math.max(2, roadWidth(way));
       for (let i = 0; i < way.nodes.length - 1; i++) {
         const [id1, id2] = [way.nodes[i], way.nodes[i + 1]];
         const length = distance(nodesMap.get(id1), nodesMap.get(id2));
         if (!adjList.has(id1)) adjList.set(id1, []);
         if (!adjList.has(id2)) adjList.set(id2, []);
-        adjList.get(id1).push({ id: id2, length });
-        adjList.get(id2).push({ id: id1, length });
+        adjList.get(id1).push({ id: id2, length, width });
+        adjList.get(id2).push({ id: id1, length, width });
       }
     });
     //console.log(adjList);
@@ -196,11 +246,14 @@ export const PixiComponent = ({
     console.log("Start and End coordinates", startAndDestination);
     console.log("Start node: ", startNode, "\nEnd node: ", endNode);
     //drawing start and end nodes
-    [startNode, endNode].forEach((node) => {
+    [
+      [startNode, palette.startRing],
+      [endNode, palette.endRing],
+    ].forEach(([node, ringColor]) => {
       const { x, y } = convertCoordinates(node);
       const nodeGraphics = new PIXI.Graphics();
-      nodeGraphics.lineStyle(2, 0xffffff, 1);
-      nodeGraphics.beginFill(0xeb2662);
+      nodeGraphics.lineStyle(3, ringColor, 1);
+      nodeGraphics.beginFill(palette.node);
       nodeGraphics.drawCircle(x, y, 6);
       nodeGraphics.endFill();
       nodesLayer.addChild(nodeGraphics);
@@ -221,40 +274,59 @@ export const PixiComponent = ({
     //whole graph gets explored in about 60 seconds at most
     const nodesPerTick = adjList.size / 1800;
 
+    //edges of the latest steps glow, then settle into the explored color
+    const settleTicks = 30;
+    let settledCount;
+    const resetTrail = () => {
+      settledCount = 0;
+    };
+    resetTrail();
+    const fadeTrail = () => {
+      const steps = trailLayer.children;
+      for (let i = settledCount; i < steps.length; i++) {
+        const settled = Math.min(1, ++steps[i].age / settleTicks);
+        steps[i].tint = mixColors(palette.exploring, palette.explored, settled);
+        if (i === settledCount && settled === 1) settledCount++;
+      }
+    };
+
     function animationLoop() {
       const { requeue, priority } = algorithms[algorithmRef.current];
       nodeBudget += nodesPerTick;
       if (nodeBudget < 1) return;
       //edges explored in this tick share one graphics object
+      //drawn in white, the color comes from the tint set in fadeTrail
       const tickGraphics = new PIXI.Graphics();
-      searchLayer.addChild(tickGraphics);
+      tickGraphics.age = 0;
+      tickGraphics.tint = palette.exploring;
+      trailLayer.addChild(tickGraphics);
       for (; nodeBudget >= 1; nodeBudget--) {
         const queueElement = queue.pop();
         if (queueElement === undefined) {
           app.ticker.remove(animationLoop);
-          showMessage("No route found");
+          onResultRef.current(
+            `${algorithms[algorithmRef.current].name}: no route found`,
+          );
           return;
         }
         if (visited.has(queueElement)) continue;
         visited.add(queueElement);
 
         if (queueElement === endNode.id) {
-          const pathGraphics = new PIXI.Graphics();
-          searchLayer.addChild(pathGraphics);
-          drawPath(pathGraphics, queueElement);
           app.ticker.remove(animationLoop);
+          startPath();
           return;
         }
 
-        adjList.get(queueElement).forEach(({ id: nodeId, length }) => {
+        adjList.get(queueElement).forEach(({ id: nodeId, length, width }) => {
           if (visited.has(nodeId)) return;
           drawEdge(
             tickGraphics,
             nodesMap.get(queueElement),
             nodesMap.get(nodeId),
             {
-              width: 2,
-              color: 0x00ff00,
+              width,
+              color: 0xffffff,
               alpha: 1,
             },
           );
@@ -273,37 +345,59 @@ export const PixiComponent = ({
       }
     }
 
-    function drawPath(pathGraphics, nodeId) {
-      if (parent.get(nodeId) === null) {
-        return;
-      }
-      // draw neonish edges
-      drawEdge(
-        pathGraphics,
-        nodesMap.get(nodeId),
-        nodesMap.get(parent.get(nodeId)),
-        {
-          width: 2,
-          color: 0x8888ff,
-          alpha: 1,
-        },
-      );
-      drawEdge(
-        pathGraphics,
-        nodesMap.get(nodeId),
-        nodesMap.get(parent.get(nodeId)),
-        {
-          width: 5,
-          color: 0x0000ff,
+    //the found route flows from the start to the end in about 1.5s
+    let pathPoints, pathProgress;
+    // neonish line: a wide soft glow under a thin bright core
+    const pathStyles = [
+      { width: 10, color: palette.routeGlow, alpha: 0.4 },
+      { width: 3, color: palette.route, alpha: 1 },
+    ];
+    const pathGraphics = pathStyles.map(() => new PIXI.Graphics());
+    pathLayer.addChild(...pathGraphics);
 
-          alpha: 0.5,
-        },
+    function startPath() {
+      pathPoints = [];
+      for (
+        let nodeId = endNode.id;
+        nodeId !== null;
+        nodeId = parent.get(nodeId)
+      )
+        pathPoints.push(convertCoordinates(nodesMap.get(nodeId)));
+      pathPoints.reverse();
+      pathProgress = 1;
+      app.ticker.add(pathLoop);
+    }
+
+    function pathLoop() {
+      pathProgress = Math.min(
+        pathPoints.length,
+        pathProgress + pathPoints.length / 45,
       );
-      drawPath(pathGraphics, parent.get(nodeId));
+      //redrawn as one line each tick so the joints stay smooth
+      pathGraphics.forEach((graphics, index) => {
+        graphics.clear();
+        graphics.lineStyle({
+          ...pathStyles[index],
+          join: PIXI.LINE_JOIN.ROUND,
+          cap: PIXI.LINE_CAP.ROUND,
+        });
+        graphics.moveTo(pathPoints[0].x, pathPoints[0].y);
+        for (let i = 1; i < pathProgress; i++)
+          graphics.lineTo(pathPoints[i].x, pathPoints[i].y);
+      });
+      if (pathProgress < pathPoints.length) return;
+      app.ticker.remove(pathLoop);
+      onResultRef.current(
+        `${algorithms[algorithmRef.current].name}: ${formatDistance(
+          costFromStart.get(endNode.id),
+        )} route, ${visited.size} of ${
+          adjList.size
+        } nodes explored (${Math.round((visited.size / adjList.size) * 100)}%)`,
+      );
     }
 
     app.ticker.maxFPS = 30;
-    //roads fade in for 1s -> map dims for 1s -> search starts
+    //roads fade in for 1s -> search starts 1s later
     let startTimer;
     let introDone = false;
     const fadeInRoads = () => {
@@ -313,19 +407,23 @@ export const PixiComponent = ({
       nodesLayer.alpha = roadsLayer.alpha;
       if (roadsLayer.alpha < 1) return;
       app.ticker.remove(fadeInRoads);
-      onRoadsDrawn();
       introDone = true;
       startTimer = setTimeout(() => app.ticker.add(animationLoop), 1000);
     };
     app.ticker.add(fadeInRoads);
+    app.ticker.add(fadeTrail);
 
     //clears what the search drew and runs it again on the same roads
     replayRef.current = () => {
       if (!introDone) return;
       clearTimeout(startTimer);
       app.ticker.remove(animationLoop);
-      searchLayer.removeChildren().forEach((child) => child.destroy());
+      app.ticker.remove(pathLoop);
+      trailLayer.removeChildren().forEach((child) => child.destroy());
+      pathGraphics.forEach((graphics) => graphics.clear());
       resetSearch();
+      resetTrail();
+      onResultRef.current(null);
       startTimer = setTimeout(() => app.ticker.add(animationLoop), 500);
     };
 
@@ -344,6 +442,3 @@ export const PixiComponent = ({
   //console.log(osm);
   return null;
 };
-
-//0x952547
-//0x00ff00

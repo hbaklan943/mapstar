@@ -13,6 +13,7 @@ export const MapPicker = ({
   bounds,
   replayCount,
   algorithm,
+  onResult,
 }) => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -34,11 +35,17 @@ export const MapPicker = ({
     )}px`;
 
     const map = L.map(container);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map);
+    //esri's dark gray map: a plain base with a place names layer on top
+    const esriUrl = "https://server.arcgisonline.com/ArcGIS/rest/services";
+    ["World_Dark_Gray_Base", "World_Dark_Gray_Reference"].forEach((name) =>
+      L.tileLayer(`${esriUrl}/Canvas/${name}/MapServer/tile/{z}/{y}/{x}`, {
+        maxZoom: 19,
+        //esri has no tiles past zoom 16, leaflet scales those up
+        maxNativeZoom: 16,
+        attribution:
+          'Tiles &copy; Esri, roads &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map),
+    );
 
     const points = startAndDestination.filter(isValidPoint);
     if (points.length > 0) {
@@ -50,12 +57,9 @@ export const MapPicker = ({
       map.setView([0, 0], 2);
     }
 
-    markersRef.current = ["Start", "Destination"].map((label) =>
-      L.circleMarker([0, 0], {
-        radius: 8,
-        color: "#eb2662",
-        fillOpacity: 0.8,
-      }).bindTooltip(label, { permanent: true, direction: "top" }),
+    //start is green, destination is red
+    markersRef.current = ["#4ade80", "#ff4d6d"].map((color) =>
+      L.circleMarker([0, 0], { radius: 8, color, fillOpacity: 0.8 }),
     );
 
     //first click picks the start, second the destination, then start again
@@ -73,12 +77,11 @@ export const MapPicker = ({
     };
   }, []);
 
-  //once the roads are loaded: dim the map, lock it on the loaded area and
+  //once the roads are loaded: lock the map on the loaded area and
   //let the pixi overlay draw on top
   useEffect(() => {
     if (!osmData) return;
     const map = mapRef.current;
-    const container = map.getContainer();
     const handlers = [
       map.dragging,
       map.scrollWheelZoom,
@@ -96,7 +99,7 @@ export const MapPicker = ({
       [bounds[0], bounds[1]],
       [bounds[2], bounds[3]],
     ];
-    //pan+zoom -> wait 1s -> roads fade in -> map dims -> search
+    //pan+zoom -> wait 1s -> roads fade in -> search
     let stepTimer;
     const afterPan = () => {
       clearTimeout(fallback);
@@ -110,8 +113,6 @@ export const MapPicker = ({
       map.fitBounds(loadedArea, { animate: false });
       afterPan();
     }, 1000);
-    //fractional zoom so the loaded area fills the map
-    map.options.zoomSnap = 0;
     map.fitBounds(loadedArea);
 
     return () => {
@@ -121,24 +122,23 @@ export const MapPicker = ({
       if (!mapRef.current) return;
       map.off("moveend", afterPan);
       lockedRef.current = false;
-      map.options.zoomSnap = 1;
       handlers.forEach((handler) => handler.enable());
       map.zoomControl.addTo(map);
-      container.classList.remove("map-dimmed");
     };
   }, [osmData]);
 
-  //keeping markers in sync with the coordinates
+  //keeping markers in sync with the coordinates, the pixi overlay draws its
+  //own start/end nodes so they are hidden while it is up
   useEffect(() => {
     startAndDestination.forEach((point, index) => {
       const marker = markersRef.current[index];
-      if (isValidPoint(point)) {
+      if (isValidPoint(point) && !routeReady) {
         marker.setLatLng([point.lat, point.lon]).addTo(mapRef.current);
       } else {
         marker.remove();
       }
     });
-  }, [startAndDestination]);
+  }, [startAndDestination, routeReady]);
 
   return (
     <>
@@ -150,9 +150,7 @@ export const MapPicker = ({
           startAndDestination={startAndDestination}
           replayCount={replayCount}
           algorithm={algorithm}
-          onRoadsDrawn={() =>
-            mapRef.current?.getContainer().classList.add("map-dimmed")
-          }
+          onResult={onResult}
         />
       )}
     </>
