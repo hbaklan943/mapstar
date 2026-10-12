@@ -8,6 +8,9 @@ dependencies:
   '@pixi/react':
     specifier: ^7.1.1
     version: 7.1.1(@babel/runtime@7.23.1)(@pixi/app@7.3.1)(@pixi/constants@7.3.1)(@pixi/core@7.3.1)(@pixi/display@7.3.1)(@pixi/extensions@7.3.1)(@pixi/graphics@7.3.1)(@pixi/math@7.3.1)(@pixi/mesh-extras@7.3.1)(@pixi/mesh@7.3.1)(@pixi/particle-container@7.3.1)(@pixi/sprite-animated@7.3.1)(@pixi/sprite-tiling@7.3.1)(@pixi/sprite@7.3.1)(@pixi/text-bitmap@7.3.1)(@pixi/text@7.3.1)(@pixi/ticker@7.3.1)(prop-types@15.8.1)(react-dom@18.2.0)(react@18.2.0)
+  leaflet:
+    specifier: ^1.9.4
+    version: 1.9.4
   pixi.js:
     specifier: ^7.3.1
     version: 7.3.1(@pixi/utils@7.3.1)
@@ -2036,6 +2039,10 @@ packages:
     dependencies:
       json-buffer: 3.0.1
     dev: true
+
+  /leaflet@1.9.4:
+    resolution: {integrity: sha512-nxS1ynzJOmOlHp+iL3FyWqK89GtNL8U8rvlMOsQdTTssxZwCXh8N2NB3GDQOL+YR3XnWyZAxwQixURb+FA74PA==}
+    dev: false
 
   /levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
