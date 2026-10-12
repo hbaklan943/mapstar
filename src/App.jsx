@@ -158,9 +158,45 @@ function App() {
       .finally(() => setLoading(false));
   }
 
-  const pickingHint =
-    "Click the map to pick the start (green), click again to pick the destination (red).";
-  const searchingHint = `${algorithms[algorithm].name}: searching...`;
+  //the line above the map: what to do next, or how the search is going
+  let status;
+  if (error) {
+    status = <span className="status-error">{error}</span>;
+  } else if (loading) {
+    status = <span>Loading roads...</span>;
+  } else if (!osmData) {
+    status = (
+      <span>
+        Click the map to pick the <span className="dot start"></span> start,
+        click again to pick the <span className="dot end"></span> destination,
+        then Submit.
+      </span>
+    );
+  } else {
+    let route = "searching...";
+    if (result?.found) route = result.distance;
+    if (result?.found === false) route = "not found";
+    status = (
+      <>
+        <span className="stat">
+          Algorithm <b>{algorithms[algorithm].name}</b>
+        </span>
+        <span className="stat">
+          Route <b>{route}</b>
+        </span>
+        <span className="stat">
+          Explored{" "}
+          <b>
+            {result
+              ? `${result.explored} / ${result.total} nodes (${Math.round(
+                  (result.explored / result.total) * 100,
+                )}%)`
+              : "-"}
+          </b>
+        </span>
+      </>
+    );
+  }
 
   const algorithmSelect = (
     <select
@@ -178,7 +214,7 @@ function App() {
 
   return (
     <div className="App">
-      <p>{error ?? result ?? (osmData ? searchingHint : pickingHint)}</p>
+      <div className="status">{status}</div>
       {osmData ? (
         <div className="controls">
           {algorithmSelect}

@@ -271,6 +271,13 @@ export const PixiComponent = ({
       queuedCount = 0;
     };
     resetSearch();
+    //tells the page how the search is going
+    const report = (state) =>
+      onResultRef.current({
+        explored: visited.size,
+        total: adjList.size,
+        ...state,
+      });
     //whole graph gets explored in about 60 seconds at most
     const nodesPerTick = adjList.size / 1800;
 
@@ -304,9 +311,7 @@ export const PixiComponent = ({
         const queueElement = queue.pop();
         if (queueElement === undefined) {
           app.ticker.remove(animationLoop);
-          onResultRef.current(
-            `${algorithms[algorithmRef.current].name}: no route found`,
-          );
+          report({ found: false });
           return;
         }
         if (visited.has(queueElement)) continue;
@@ -343,6 +348,7 @@ export const PixiComponent = ({
           }
         });
       }
+      report({});
     }
 
     //the found route flows from the start to the end in about 1.5s
@@ -387,13 +393,10 @@ export const PixiComponent = ({
       });
       if (pathProgress < pathPoints.length) return;
       app.ticker.remove(pathLoop);
-      onResultRef.current(
-        `${algorithms[algorithmRef.current].name}: ${formatDistance(
-          costFromStart.get(endNode.id),
-        )} route, ${visited.size} of ${
-          adjList.size
-        } nodes explored (${Math.round((visited.size / adjList.size) * 100)}%)`,
-      );
+      report({
+        found: true,
+        distance: formatDistance(costFromStart.get(endNode.id)),
+      });
     }
 
     app.ticker.maxFPS = 30;

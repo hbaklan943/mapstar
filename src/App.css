@@ -45,6 +45,45 @@
   background: #1a1a1a;
 }
 
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6em;
+  min-height: 2.4em;
+  margin: 1em 0 0.8em;
+  font-size: 1.1rem;
+}
+.status-error {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+.stat {
+  padding: 0.2em 0.8em;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.15);
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+.stat b {
+  margin-left: 0.3em;
+}
+.dot {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+}
+.dot.start {
+  background: #4ade80;
+}
+.dot.end {
+  background: #ff4d6d;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
